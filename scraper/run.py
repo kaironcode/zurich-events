@@ -174,7 +174,7 @@ EVENT_SCHEMA = {
                     "spots_left": {"type": ["integer", "null"], "description": SPOTS_DESC},
                     "is_offer": {"type": "boolean", "description": "True for a standing discount/membership offer rather than a dated event."},
                 },
-                "required": ["title", "start", "price_min", "summary", "status", "assigned_book", "is_offer"],
+                "required": ["title", "start", "price_min", "summary", "status", "assigned_book", "few_left", "is_offer"],
             },
         }
     },
@@ -196,7 +196,8 @@ def claude_extract(text: str, src: dict, mode: str = "list") -> list[dict]:
         "using the stated time, and copy any stated price.",
         "Merge duplicates. Keep titles short and in the original language.",
         "Set status from labels like 'Cancelled', 'Abgesagt', 'Sold out', 'Ausverkauft', 'Registration closed', "
-        "'Anmeldung geschlossen', 'full'. Always write a brief English summary.",
+        "'Anmeldung geschlossen', 'full'. Set few_left from labels like 'Few tickets', 'Wenige Tickets', "
+        "'Only x left', 'fast ausgebucht'. Always write a brief English summary.",
     ]
     if src.get("aggregator"):
         rules.append(f"This is a large listing: keep ONLY events matching these interests: {INTERESTS}. "
@@ -226,7 +227,7 @@ DETAIL_SCHEMA = {
         "registration_deadline": {"type": ["string", "null"], "description": "ISO 8601 if a sign-up/sale deadline is stated."},
         "summary": {"type": ["string", "null"], "description": SUMMARY_DESC},
     },
-    "required": ["status", "assigned_book", "price_min", "summary"],
+    "required": ["status", "assigned_book", "few_left", "price_min", "summary"],
 }
 
 
