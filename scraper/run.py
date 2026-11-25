@@ -227,13 +227,15 @@ def claude_detail(text: str, ev: dict) -> dict:
     when = ev.get("start_at") or ""
     rules = [
         f"Today is {today} (Europe/Zurich). This page belongs to ONE event: \"{ev['title']}\" on {when[:16]}.",
-        "If the page lists several dates or several events, answer only for this one.",
+        "If the page lists several dates or several events, answer only for this one. When the page is a list "
+        "of events with a price next to each (e.g. 'Watercolour Workshop ... from CHF 45'), use the price shown "
+        "next to this event's title.",
         "Read the whole text, including the bottom of the page and any ticket/registration box, then return "
         "its status, the student price, any registration/sale deadline and a brief English summary. "
         "Prices are usually written as 'CHF 25', 'Fr. 25.-', '25.00 CHF', 'Eintritt: 15/10' or 'Kosten'. "
         "Never guess; unknown = null.",
     ]
-    return ask_json("\n".join(rules), text[:30000], DETAIL_SCHEMA, "event_detail")
+    return ask_json("\n".join(rules), text[:60000], DETAIL_SCHEMA, "event_detail")
 
 
 def claude_filter(lines: list[str]) -> set[int]:
@@ -303,6 +305,21 @@ def price_from_text(t: str):
     return None, None
 
 
+CLOSED_RE = [("cancelled", r"\b(cancell?ed|abgesagt|entf[äa]llt)\b"),
+             ("sold_out", r"\b(sold out|ausverkauft|fully booked|ausgebucht)\b"),
+             ("registration_closed", r"\b(registration (is )?closed|anmeldung (ist )?geschlossen|registration has closed|booking closed)\b")]
+
+
+def status_from(e: dict) -> str:
+    st = e.get("status") if e.get("status") in STATUSES else "unknown"
+    if st in ("open", "unknown"):
+        blob = " ".join(str(e.get(k) or "") for k in ("summary", "price_text", "title")).lower()
+        for name, rx in CLOSED_RE:
+            if re.search(rx, blob):
+                return name
+    return st
+
+
 def to_row(src: dict, e: dict) -> dict | None:
     title = (e.get("title") or "").strip()
     if not title or e.get("assigned_book"):
@@ -337,7 +354,7 @@ def to_row(src: dict, e: dict) -> dict | None:
         "registration_deadline": deadline.isoformat() if deadline else None,
         "url": e.get("url") or src["url"],
         "summary": (e.get("summary") or None),
-        "status": e.get("status") if e.get("status") in STATUSES else "unknown",
+        "status": status_from(e),
         "ticket_url": e.get("ticket_url"),
         "last_seen": NOW.isoformat(),
     }
@@ -422,8 +439,9 @@ def detail_one(ev: dict) -> str:
     if d.get("assigned_book"):
         sb("DELETE", f"events?id=eq.{ev['id']}")
         return f"  - {ev['title'][:50]}: book discussion, removed"
-    if d.get("status") in STATUSES and d["status"] != "unknown":
-        patch["status"] = d["status"]
+    st = status_from(d)
+    if st != "unknown":
+        patch["status"] = st
     if d.get("price_min") is not None:
         patch["price_min"] = d["price_min"]
         patch["price_max"] = d.get("price_max") if d.get("price_max") is not None else d["price_min"]
@@ -439,7 +457,7 @@ def detail_one(ev: dict) -> str:
     return f"  ✓ {ev['title'][:50]}: {patch.get('status', '-')}, {patch.get('price_min', '-')}"
 
 
-def detail_pass(cfg: list[dict]):
+def detail_pass(cfg: list[dict], only: set | None = None):
     listing_urls = {s["url"].rstrip("/") for s in cfg}
     now = NOW.strftime("%Y-%m-%dT%H:%M:%SZ")
     evs = sb("GET", f"events?kind=eq.event&start_at=gte.{now}&select=id,title,start_at,url,ticket_url,status,checked_at,source_id"
@@ -453,7 +471,7 @@ def detail_pass(cfg: list[dict]):
             return False                      # no own page, the listing is all there is
         if e.get("status") in ("cancelled",):
             return False
-        if not e.get("checked_at"):
+        if not e.get("checked_at") or (only and e["source_id"] in only):
             return True
         age = NOW - datetime.fromisoformat(e["checked_at"])
         start = datetime.fromisoformat(e["start_at"])
@@ -557,7 +575,7 @@ def main():
             sb("PATCH", f"sources?id=eq.{src['id']}", json=status)
 
     if not DRY:
-        detail_pass(cfg)
+        detail_pass(cfg, only)
 
     if not DRY and not only:
         active = {s["id"] for s in cfg}
