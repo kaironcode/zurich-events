@@ -3,7 +3,7 @@
 A personal app that checks Zurich event sources every morning and shows new events as swipeable cards.
 
 - **Daily check:** `.github/workflows/daily.yml` runs `scraper/run.py` on GitHub's servers at 04:37 UTC (05:37 Zurich time in winter, 06:37 in summer). No laptop needed.
-- **Extraction:** pages that changed since the last check are read by the Claude API (`claude-haiku-5-5`). Meetup groups are read from their iCal feeds.
+- **Extraction:** pages that changed since the last check are read by Claude Code (`claude -p`, Haiku) using your Claude subscription, so there are no API charges. Meetup groups are read from their iCal feeds.
 - **Storage:** Supabase (Postgres) holds events, your swipes and your settings.
 - **Site:** `site/` is served by GitHub Pages and can be added to your phone's home screen.
 
@@ -19,7 +19,9 @@ Events stay in Discover until you swipe them, the event has passed, or its regis
 
 ### 2. GitHub repository settings
 **Settings → Secrets and variables → Actions**
-- *Secrets*: `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- *Secrets*: `CLAUDE_CODE_OAUTH_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY`
+  - To get `CLAUDE_CODE_OAUTH_TOKEN`: install Claude Code on your computer (`npm install -g @anthropic-ai/claude-code`), run `claude setup-token`, sign in with your Claude account, and copy the token it prints. It is tied to your subscription and counts toward your plan's usage.
+  - Alternative: set `ANTHROPIC_API_KEY` instead to pay per use through the API.
 - *Variables*: `SUPABASE_URL`, `SUPABASE_ANON_KEY`
 
 **Settings → Pages → Build and deployment → Source: GitHub Actions**

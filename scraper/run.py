@@ -3,7 +3,7 @@
 Fetches every enabled source in sources.yaml, extracts events with the Claude API
 (or parses iCal feeds directly), and upserts them into Supabase.
 
-Env: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+Env: CLAUDE_CODE_OAUTH_TOKEN (subscription) or ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 Optional: MODEL (default claude-haiku-5-5), ONLY=id1,id2 (debug), DRY_RUN=1
 """
 from __future__ import annotations
@@ -72,6 +72,63 @@ def upsert(table: str, rows: list[dict]):
 
 
 # ---------------------------------------------------------------- Claude
+#
+# Two ways to reach Claude:
+#  - CLAUDE_CODE_OAUTH_TOKEN set: run the Claude Code CLI ("claude -p"), billed to your
+#    Claude subscription (Pro/Max) instead of API credits.
+#  - otherwise ANTHROPIC_API_KEY: call the Messages API directly (pay per use).
+import subprocess
+
+CLI_MODEL = os.environ.get("CLI_MODEL", "haiku")
+
+
+def ask_json(instructions: str, content: str, schema: dict, tool: str) -> dict:
+    if os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"):
+        prompt = (instructions + "\n\nReply with ONLY a JSON object (no prose, no code fences) matching "
+                  "this JSON Schema:\n" + json.dumps(schema) + "\n\nThe input follows on stdin.")
+        for attempt in range(3):
+            p = subprocess.run(
+                ["claude", "-p", prompt, "--output-format", "json", "--model", CLI_MODEL,
+                 "--max-turns", "1", "--tools", ""],
+                input=content, capture_output=True, text=True, timeout=300)
+            if p.returncode == 0:
+                out = json.loads(p.stdout)
+                if out.get("is_error"):
+                    raise RuntimeError(f"claude CLI: {out.get('result', '')[:200]}")
+                txt = out.get("result", "")
+                m = re.search(r"\{.*\}", txt, re.S)
+                if m:
+                    return json.loads(m.group(0))
+                raise RuntimeError(f"claude CLI returned no JSON: {txt[:200]}")
+            if "rate" in (p.stderr + p.stdout).lower() or "limit" in (p.stderr + p.stdout).lower():
+                time.sleep(30 * (attempt + 1))
+                continue
+            raise RuntimeError(f"claude CLI exit {p.returncode}: {(p.stderr or p.stdout)[:300]}")
+        raise RuntimeError("claude CLI kept hitting limits")
+
+    body = {
+        "model": MODEL, "max_tokens": 8000,
+        "system": "You extract structured event data for a personal events app in Zurich. "
+                  "Accuracy over coverage: when in doubt, leave a field null.",
+        "tools": [{"name": tool, "description": "Return the result.", "input_schema": schema}],
+        "tool_choice": {"type": "tool", "name": tool},
+        "messages": [{"role": "user", "content": instructions + "\n\n--- INPUT ---\n" + content}],
+    }
+    for attempt in range(3):
+        r = requests.post("https://api.anthropic.com/v1/messages",
+                          headers={"x-api-key": os.environ["ANTHROPIC_API_KEY"],
+                                   "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                          json=body, timeout=180)
+        if r.status_code in (429, 500, 502, 503, 529):
+            time.sleep(10 * (attempt + 1))
+            continue
+        r.raise_for_status()
+        for block in r.json().get("content", []):
+            if block.get("type") == "tool_use":
+                return block["input"]
+        return {}
+    raise RuntimeError(f"Claude API kept failing ({r.status_code})")
+
 
 EVENT_SCHEMA = {
     "type": "object",
@@ -127,55 +184,19 @@ def claude_extract(text: str, src: dict, mode: str = "list") -> list[dict]:
             "Return exactly one item for that event with its price and registration/sale deadline "
             "if stated. Never guess. Unknown = null.",
         ]
-    body = {
-        "model": MODEL,
-        "max_tokens": 8000,
-        "system": "You extract structured event data for a personal events app in Zurich. "
-                  "Accuracy over coverage: when in doubt, leave a field null.",
-        "tools": [{"name": "save_events", "description": "Save the extracted events.",
-                   "input_schema": EVENT_SCHEMA}],
-        "tool_choice": {"type": "tool", "name": "save_events"},
-        "messages": [{"role": "user", "content": "\n".join(rules) + "\n\n--- PAGE TEXT ---\n" + text[:MAX_TEXT]}],
-    }
-    for attempt in range(3):
-        r = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": os.environ["ANTHROPIC_API_KEY"],
-                     "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json=body, timeout=180)
-        if r.status_code in (429, 500, 502, 503, 529):
-            time.sleep(10 * (attempt + 1))
-            continue
-        r.raise_for_status()
-        for block in r.json().get("content", []):
-            if block.get("type") == "tool_use":
-                return block["input"].get("events", [])
-        return []
-    raise RuntimeError(f"Claude API kept failing ({r.status_code})")
+    rules.append("Each event's url must be copied from the <link> next to it in the text, if any.")
+    return ask_json("\n".join(rules), text[:MAX_TEXT], EVENT_SCHEMA, "save_events").get("events", [])
 
 
 def claude_filter(lines: list[str]) -> set[int]:
     """Return indices of listing lines that match INTERESTS."""
     numbered = "\n".join(f"{i}: {l}" for i, l in enumerate(lines))
-    body = {
-        "model": MODEL, "max_tokens": 2000,
-        "tools": [{"name": "keep", "description": "Indices of items to keep.",
-                   "input_schema": {"type": "object", "properties": {"indices": {"type": "array", "items": {"type": "integer"}}},
-                                    "required": ["indices"]}}],
-        "tool_choice": {"type": "tool", "name": "keep"},
-        "messages": [{"role": "user", "content":
-                      f"Keep only items matching these interests: {INTERESTS}. Drop parties, sport, "
-                      f"business networking, wellness, dating and tourist tours.\n\n{numbered}"}],
-    }
-    r = requests.post("https://api.anthropic.com/v1/messages",
-                      headers={"x-api-key": os.environ["ANTHROPIC_API_KEY"],
-                               "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                      json=body, timeout=120)
-    r.raise_for_status()
-    for b in r.json().get("content", []):
-        if b.get("type") == "tool_use":
-            return set(b["input"].get("indices", []))
-    return set()
+    schema = {"type": "object", "properties": {"indices": {"type": "array", "items": {"type": "integer"}}},
+              "required": ["indices"]}
+    res = ask_json(f"Keep only items matching these interests: {INTERESTS}. Drop parties, sport, "
+                   "business networking, wellness, dating and tourist tours. Return the indices to keep.",
+                   numbered, schema, "keep")
+    return set(res.get("indices", []))
 
 
 # ---------------------------------------------------------------- helpers
