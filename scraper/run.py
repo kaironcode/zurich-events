@@ -259,7 +259,7 @@ def fetch(url: str) -> requests.Response:
 
 def page_text(html: str, base: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
-    for t in soup(["script", "style", "noscript", "svg", "iframe", "form"]):
+    for t in soup(["script", "style", "svg", "iframe", "form"]):
         t.decompose()
     for t in soup.select("nav, footer, [role=navigation], .cookie, #cookie, .cookies"):
         t.decompose()
