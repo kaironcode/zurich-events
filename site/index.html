@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zurich Events</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Zurich events">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE calm, printed city programme, now in your pocket
+   IDEA a stack of index cards from the same program sheet
+   PICTURE the top card: date large, title, venue, price tag
+   COLOUR white paper, near-black ink, Zurich blue accent, red only for discard/errors
+   TYPE Hanken Grotesk
+   LAYOUT phone first: tabs on top, filters, card stack, two buttons; centred column on desktop */
+:root{color-scheme:light dark;--bg:light-dark(#fff,#0f1115);--ink:light-dark(#16181d,#e8eaee);--soft:light-dark(#6f7584,#8b92a1);--line:light-dark(#e4e7ec,#262b35);--card:light-dark(#fff,#161a21);--blue:light-dark(#1749c2,#7ea2ff);--red:light-dark(#c8322a,#ff7b72);--chip:light-dark(#f2f4f7,#1c2129)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 "Hanken Grotesk",system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+button,input{font:inherit;color:inherit}
+.app{max-width:560px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding:max(14px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-bottom:10px;border-bottom:2px solid var(--ink)}
+h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em}
+.status{font-size:13px;color:var(--soft);text-align:right}
+nav{display:flex;gap:4px;margin:12px 0 10px;overflow-x:auto}
+nav button{border:0;background:none;padding:8px 12px;min-height:40px;border-radius:999px;font-weight:500;color:var(--soft);cursor:pointer;white-space:nowrap}
+nav button[aria-current=true]{background:var(--ink);color:var(--bg)}
+nav b{font-weight:500;opacity:.7;margin-left:4px}
+.filters{display:grid;gap:10px;margin-bottom:12px}
+.price{display:flex;align-items:center;gap:10px;font-size:14px}
+.price label{white-space:nowrap;color:var(--soft)}
+.price output{min-width:74px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+input[type=range]{flex:1;accent-color:var(--blue);height:28px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--chip);border-radius:999px;padding:5px 11px;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;min-height:34px}
+.chip[aria-pressed=false]{opacity:.45;text-decoration:line-through}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.stack{position:relative;flex:1;min-height:420px;margin:4px 0 14px;touch-action:pan-y}
+.card{position:absolute;inset:0;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px 22px 18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 1px 0 var(--line),0 12px 30px -18px rgba(0,0,0,.35);user-select:none;-webkit-user-select:none;overflow:hidden;will-change:transform}
+.card.next{transform:scale(.96) translateY(10px);opacity:.7}
+.card .cat{font-size:13px;font-weight:700;color:var(--blue);display:flex;align-items:center;gap:7px}
+.card .when{font-size:clamp(26px,7vw,34px);font-weight:700;letter-spacing:-.025em;line-height:1.05}
+.card .when small{display:block;font-size:17px;font-weight:500;color:var(--soft);letter-spacing:0;margin-top:4px}
+.card h2{margin:4px 0 0;font-size:21px;line-height:1.2;font-weight:700;letter-spacing:-.01em}
+.card .venue{color:var(--soft)}
+.card .sum{font-size:15px;color:var(--soft);overflow:hidden;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:14px;padding:3px 10px;border-radius:999px;background:var(--chip);white-space:nowrap}
+.tag.price{background:var(--ink);color:var(--bg);font-weight:700}
+.tag.deadline{background:none;border:1px solid var(--red);color:var(--red)}
+.card .foot{margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px;color:var(--soft);padding-top:10px;border-top:1px dotted var(--line)}
+.card a{color:var(--blue);font-weight:700;text-decoration:none;white-space:nowrap}
+.stamp{position:absolute;top:22px;padding:4px 12px;border:3px solid;border-radius:8px;font-weight:700;font-size:20px;opacity:0;transform:rotate(-8deg)}
+.stamp.save{left:20px;color:var(--blue)}.stamp.drop{right:20px;color:var(--red);transform:rotate(8deg)}
+.actions{display:grid;grid-template-columns:1fr auto 1fr;gap:10px}
+.actions button{min-height:52px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);font-weight:700;font-size:17px;cursor:pointer}
+.actions .drop{color:var(--red)}.actions .save{background:var(--blue);border-color:var(--blue);color:#fff}
+.actions .undo{padding:0 16px;color:var(--soft);font-weight:500;font-size:15px}
+.actions button:disabled{opacity:.35}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.empty{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:var(--soft);padding:20px;border:1.5px dashed var(--line);border-radius:18px}
+.empty strong{color:var(--ink);font-size:20px;display:block;margin-bottom:6px}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.list .t{font-weight:700}
+.list .m{grid-column:1;color:var(--soft);font-size:14px}
+.list .b{grid-row:1/3;grid-column:2;display:flex;gap:6px;align-items:center}
+.list button{border:1px solid var(--line);background:var(--chip);border-radius:10px;min-height:38px;padding:0 12px;cursor:pointer;font-size:14px}
+.list a{color:inherit;text-decoration:none}
+h3{font-size:13px;font-weight:700;color:var(--blue);margin:22px 0 4px;display:flex;align-items:center;gap:8px}
+.switch{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.switch small{display:block;color:var(--soft);font-size:13px}
+.switch small.err{color:var(--red)}
+.switch input{width:44px;height:26px;accent-color:var(--blue);flex:none}
+.login{margin:auto 0;display:grid;gap:12px;padding:20px 0}
+.login p{color:var(--soft);margin:0}
+.login input{min-height:48px;padding:0 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-size:16px}
+.login button{min-height:48px;border:0;border-radius:12px;background:var(--blue);color:#fff;font-weight:700}
+.toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+[hidden]{display:none!important}
+@media(prefers-reduced-motion:reduce){.card{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header><h1>Zurich events</h1><div class="status" id="status">Loading…</div></header>
+
+  <section id="login" class="login" hidden>
+    <h2 style="margin:0;font-size:22px">Sign in</h2>
+    <p>Your saved and discarded events sync between your phone and laptop. Enter your email and open the link you receive.</p>
+    <input id="email" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email">
+    <button id="send">Send sign-in link</button>
+    <p id="sent" hidden>Check your inbox and open the link on this device.</p>
+  </section>
+
+  <div id="main" hidden style="display:flex;flex-direction:column;flex:1">
+    <nav id="tabs">
+      <button data-tab="discover" aria-current="true">Discover<b id="n-discover"></b></button>
+      <button data-tab="saved">Saved<b id="n-saved"></b></button>
+      <button data-tab="offers">Offers<b id="n-offers"></b></button>
+      <button data-tab="sources">Sources</button>
+    </nav>
+
+    <section id="tab-discover" style="display:flex;flex-direction:column;flex:1">
+      <div class="filters">
+        <div class="price">
+          <label for="pmax">Max price</label>
+          <input id="pmax" type="range" min="0" max="105" step="5" value="105">
+          <output id="pmax-out">Any</output>
+        </div>
+        <div class="chips" id="cats"></div>
+        <label class="chip" style="justify-self:start"><input id="unpriced" type="checkbox" checked style="margin:0;accent-color:var(--blue)"> Include events without a listed price</label>
+      </div>
+      <div class="stack" id="stack"></div>
+      <div class="actions">
+        <button class="drop" id="btn-drop">Discard</button>
+        <button class="undo" id="btn-undo" disabled>Undo</button>
+        <button class="save" id="btn-save">Save</button>
+      </div>
+    </section>
+
+    <section id="tab-saved" hidden><ul class="list" id="saved"></ul></section>
+    <section id="tab-offers" hidden><ul class="list" id="offers"></ul></section>
+    <section id="tab-sources" hidden><div id="sources"></div>
+      <p style="color:var(--soft);font-size:14px;margin-top:18px">Hidden sources keep being checked; their events come back when you switch them on. <a href="#" id="logout" style="color:var(--blue)">Sign out</a></p>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

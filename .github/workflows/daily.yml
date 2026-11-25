@@ -1,0 +1,32 @@
+name: Daily event check
+
+on:
+  schedule:
+    # 04:37 UTC = 05:37 Zurich in winter, 06:37 in summer
+    - cron: "37 4 * * *"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Comma-separated source ids to check (blank = all)"
+        required: false
+        default: ""
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scraper/requirements.txt
+      - run: pip install -r scraper/requirements.txt
+      - name: Check sources
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ONLY: ${{ github.event.inputs.only }}
+        run: python scraper/run.py

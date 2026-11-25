@@ -1,0 +1,215 @@
+# Event sources checked every morning.
+#
+# kind:
+#   page  - fetch the HTML, strip it to text, let Claude extract events (default)
+#   ical  - an iCalendar feed, parsed directly (Meetup groups)
+#   offer - a page describing a standing discount/offer; becomes one "offer" card
+# category: book | read | philo | art | event | offer
+# aggregator: true  -> big listing; only events matching INTERESTS are kept
+# details: true     -> for new events without a price, open the event page once to look for price/deadline
+# enabled: false    -> not checked at all (hiding a source in the app is separate and per user)
+
+sources:
+  # ---------- Book clubs ----------
+  - id: joyce
+    name: James Joyce Foundation
+    category: book
+    url: https://joycefoundation.ch/reading-groups/
+  - id: vastela
+    name: Vastela Books
+    category: book
+    url: https://www.vastelabooks.com/collections/events
+  - id: zurichbookclub
+    name: Zurich Book Club
+    category: book
+    kind: ical
+    url: https://www.meetup.com/zurichbookclub/events/ical/
+  - id: worldlit
+    name: 20th-c. World Literature
+    category: book
+    kind: ical
+    url: https://www.meetup.com/20th-century-world-literature-book-club-zurich/events/ical/
+  - id: lgbtbooks
+    name: LGBT Book Club
+    category: book
+    kind: ical
+    url: https://www.meetup.com/english-language-lgbt-book-club-zurich/events/ical/
+  - id: inkdrinkers
+    name: Ink Drinkers
+    category: book
+    url: https://www.inkdrinkers.club/clubs
+  - id: literaturhaus
+    name: Literaturhaus Zürich
+    category: book
+    url: https://literaturhaus.ch/programm/
+    details: true
+  - id: strauhof
+    name: Strauhof
+    category: book
+    url: https://strauhof.ch/veranstaltungen/
+
+  # ---------- Reading together ----------
+  - id: silentreadingrave
+    name: Silent Reading Rave
+    category: read
+    url: https://silentreadingrave.com/
+
+  # ---------- Philosophy & debate ----------
+  - id: debate
+    name: Debatierclub ETH
+    category: philo
+    url: https://debate.ethz.ch/
+  - id: philminds
+    name: Philosophical Minds
+    category: philo
+    kind: ical
+    url: https://www.meetup.com/philosophical_minds_zurich/events/ical/
+  - id: pontes
+    name: PontesDialog
+    category: philo
+    kind: ical
+    url: https://www.meetup.com/pontesdialog/events/ical/
+  - id: onlinephil
+    name: Online philosophy group
+    category: philo
+    kind: ical
+    url: https://www.meetup.com/online-group-philosophy-science-politics-and-economics/events/ical/
+  - id: oerlikon
+    name: Philosophers Oerlikon
+    category: philo
+    url: https://www.philosophers-oerlikon.ch/
+  - id: uzhphil
+    name: UZH Philosophisches Seminar
+    category: philo
+    url: https://www.philosophie.uzh.ch/
+  - id: uzhinaugural
+    name: UZH inaugural lectures
+    category: philo
+    url: https://www.uzh.ch/de/events/av.html
+  - id: collegium
+    name: Collegium Helveticum
+    category: philo
+    url: https://collegium.ethz.ch/events/
+  - id: philofestival
+    name: Zürcher Philosophie Festival
+    category: philo
+    url: https://philosophiefestival.ch/
+
+  # ---------- Art & workshops ----------
+  - id: sculpture
+    name: Sculpture drawing (Kunst und Bildung)
+    category: art
+    kind: ical
+    url: https://www.meetup.com/kunst-und-bildung/events/ical/
+  - id: urbansketchers
+    name: Urban Sketchers Zurich
+    category: art
+    kind: ical
+    url: https://www.meetup.com/urban_sketchers_zurich/events/ical/
+  - id: aktlabor
+    name: Aktlabor (ZHdK)
+    category: art
+    url: https://kvis.zhdk.ch/news/aktlabor/
+  - id: aktzeichnen
+    name: Aktzeichnen
+    category: art
+    url: https://www.aktzeichnen.ch/
+  - id: aktarts
+    name: Life Drawing Zurich
+    category: art
+    kind: ical
+    url: https://www.meetup.com/akt_arts/events/ical/
+  - id: tanzquotient
+    name: Tanzquotient
+    category: art
+    url: https://tanzquotient.org/en/courses/
+
+  # ---------- Events & music ----------
+  - id: calmaguide
+    name: Calmaguide
+    category: event
+    url: https://www.calmaguide.ch/
+  - id: mehrspur
+    name: Mehrspur
+    category: event
+    url: https://www.mehrspur.ch/
+  - id: zurichtogether
+    name: Zurich Together
+    category: event
+    kind: ical
+    url: https://www.meetup.com/zurichtogether/events/ical/
+    aggregator: true
+  - id: socialcircle
+    name: SocialCircle
+    category: event
+    kind: ical
+    url: https://www.meetup.com/social-circle-zurich/events/ical/
+    aggregator: true
+  - id: offlineclub
+    name: Offline Club
+    category: event
+    url: https://www.theoffline-club.com/city-chapters/zurich-chapter
+  - id: vseth
+    name: VSETH events
+    category: event
+    url: https://vseth.ethz.ch/events-2/
+  - id: kulturzueri
+    name: Kulturzüri agenda
+    category: event
+    url: https://www.kulturzueri.ch/veranstaltungen/
+    aggregator: true
+    details: true
+  - id: ef-readings
+    name: Eventfrog · readings
+    category: book
+    url: https://eventfrog.ch/en/events/zuerich/readings.html
+    aggregator: true
+    details: true
+  - id: ef-classical
+    name: Eventfrog · classical
+    category: event
+    url: https://eventfrog.ch/en/events/zuerich/classical-music.html
+    aggregator: true
+    details: true
+  - id: ef-artcourses
+    name: Eventfrog · art courses
+    category: art
+    url: https://eventfrog.ch/en/events/zuerich/courses-art-culture.html
+    aggregator: true
+    details: true
+  - id: ef-lectures
+    name: Eventfrog · lectures
+    category: philo
+    url: https://eventfrog.ch/en/events/zuerich/lecture.html
+    aggregator: true
+    details: true
+
+  # ---------- Offers & discounts ----------
+  - id: kulturstelle
+    name: Kulturstelle
+    category: offer
+    url: https://kulturstelle.ch/de/events/
+  - id: clubjung
+    name: Club Jung · Opernhaus
+    category: offer
+    kind: offer
+    url: https://www.opernhaus.ch/en/service/fuer-alle/club-jung/
+  - id: klubz
+    name: klubZ · Tonhalle
+    category: offer
+    url: https://www.tonhalle-orchester.ch/engagement/klubz/klubz-events/
+  - id: kunsthaus
+    name: Kunsthaus Zürich
+    category: offer
+    kind: offer
+    url: https://www.kunsthaus.ch/en/
+  - id: schauspielhaus
+    name: Schauspielhaus concessions
+    category: offer
+    kind: offer
+    url: https://neu.schauspielhaus.ch/en/971/
+  - id: vsuzh
+    name: VSUZH student discounts
+    category: offer
+    kind: offer
+    url: https://www.vsuzh.ch/en/verguenstigungen
