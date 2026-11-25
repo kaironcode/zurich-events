@@ -421,7 +421,7 @@ def main():
 
     # upcoming-count per source, for the settings screen
     if not DRY:
-        rows = sb("GET", f"events?select=source_id&or=(start_at.gte.{NOW.isoformat()},kind.eq.offer)")
+        rows = sb("GET", f"events?select=source_id&or=(start_at.gte.{NOW.strftime('%Y-%m-%dT%H:%M:%SZ')},kind.eq.offer)")
         counts = {}
         for r in rows:
             counts[r["source_id"]] = counts.get(r["source_id"], 0) + 1
