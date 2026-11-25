@@ -179,7 +179,12 @@ def claude_extract(text: str, src: dict, mode: str = "list") -> list[dict]:
                      "Drop parties, kids' events, sport, business networking, wellness and tourist tours.")
     if src.get("kind") == "offer" or src["category"] == "offer":
         rules.append("This source is about discounts/offers. Return each concrete offer as is_offer=true "
-                     "with start=null, plus any dated events it lists as normal events.")
+                     "with start=null, plus any dated events it lists as normal events. Only keep offers a "
+                     "university student in their early twenties with a student card (Legi) can use, e.g. "
+                     "student/under-26/under-30 prices, last-minute tickets, free days, cheap memberships. "
+                     "Skip offers that need a bank account, a newspaper or theatre subscription, a club or "
+                     "union membership, a disability card, refugee status, group or school-class bookings. "
+                     "Merge closely related offers into one item.")
     if mode == "detail":
         rules = [
             f"Today is {today}. This is the detail page of one event: \"{src['_title']}\".",
