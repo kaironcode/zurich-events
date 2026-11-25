@@ -30,7 +30,7 @@ NOW = datetime.now(timezone.utc)
 HORIZON_DAYS = 60          # ignore events further out than this
 AGG_HORIZON_DAYS = 42      # aggregators: next six weeks only
 MAX_TEXT = 45000           # characters of page text sent to Claude
-MAX_DETAIL_FETCHES = 30    # per run, across all sources
+MAX_DETAIL_FETCHES = 60    # per run, across all sources (clubs/venues first, aggregators last)
 MODEL = os.environ.get("MODEL", "claude-haiku-5-5")
 DRY = os.environ.get("DRY_RUN") == "1"
 
@@ -351,6 +351,7 @@ def main():
     cfg = yaml.safe_load((ROOT / "sources.yaml").read_text())["sources"]
     only = set(filter(None, os.environ.get("ONLY", "").split(",")))
     cfg = [s for s in cfg if s.get("enabled", True) and (not only or s["id"] in only)]
+    cfg.sort(key=lambda s: bool(s.get("aggregator")))  # price lookups go to clubs/venues first
     for s in cfg:
         s.setdefault("kind", "page")
 
@@ -371,7 +372,8 @@ def main():
     for src in cfg:
         status = {"id": src["id"], "last_checked": NOW.isoformat()}
         try:
-            prev = known.get(src["id"], {}).get("fingerprint")
+            # a manual run for named sources (ONLY=...) re-reads them even if the page is unchanged
+            prev = None if only else known.get(src["id"], {}).get("fingerprint")
             fp, items = (run_ical if src["kind"] == "ical" else run_page)(src, prev)
             status["fingerprint"] = fp
             if items is None:
@@ -405,6 +407,11 @@ def main():
                 upsert("events", fresh)   # PostgREST needs identical keys within one batch
                 upsert("events", seen)
                 existing.update(r["id"] for r in fresh)
+                # events that vanished from a club/venue page (cancelled, moved) are removed;
+                # aggregators are skipped because their interest filter varies from day to day
+                if rows and not src.get("aggregator"):
+                    sb("DELETE", f"events?source_id=eq.{src['id']}&last_seen=lt.{NOW.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+                                 f"&or=(start_at.gte.{NOW.strftime('%Y-%m-%dT%H:%M:%SZ')},kind.eq.offer)")
                 print(f"+ {src['id']}: {len(rows)} items, {len(fresh)} new")
             status["last_ok"] = NOW.isoformat()
             status["last_error"] = None

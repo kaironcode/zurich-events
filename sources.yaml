@@ -22,6 +22,7 @@ sources:
   - id: zurichbookclub
     name: Zurich Book Club
     category: book
+    enabled: false   # Meetup refuses this group's calendar feed (403)
     kind: ical
     url: https://www.meetup.com/zurichbookclub/events/ical/
   - id: worldlit
@@ -121,7 +122,8 @@ sources:
     url: https://www.meetup.com/akt_arts/events/ical/
   - id: tanzquotient
     name: Tanzquotient
-    category: art
+    category: offer
+    kind: offer
     url: https://tanzquotient.org/en/courses/
 
   # ---------- Events & music ----------
@@ -156,7 +158,7 @@ sources:
   - id: kulturzueri
     name: Kulturzüri agenda
     category: event
-    url: https://www.kulturzueri.ch/veranstaltungen/
+    url: https://www.kulturzueri.ch/
     aggregator: true
     details: true
   - id: ef-readings
@@ -207,7 +209,7 @@ sources:
     name: Schauspielhaus concessions
     category: offer
     kind: offer
-    url: https://neu.schauspielhaus.ch/en/971/
+    url: https://www.schauspielhaus.ch/en/35772
   - id: vsuzh
     name: VSUZH student discounts
     category: offer
