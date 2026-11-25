@@ -142,6 +142,10 @@ STATUS_DESC = ("cancelled if cancelled/abgesagt/entfällt; sold_out if ausverkau
                "'Anmeldung geschlossen', 'closed', 'Verkauf beendet', sale/registration end date passed); "
                "open if tickets/registration are available or entry needs no registration; else unknown. "
                "Words like 'geschlossen' in a venue's opening hours (e.g. 'Montag geschlossen') do NOT count.")
+FEW_DESC = ("True if the page says only a few tickets/spots/places are left or the event is nearly full "
+            "(e.g. 'Few tickets', 'Wenige Tickets', 'Nur noch 3 Plätze', 'fast ausgebucht', 'almost full', "
+            "'limited spots left'). False otherwise.")
+SPOTS_DESC = "Number of remaining tickets/spots if the page states it, else null."
 BOOK_DESC = ("True only if this is a book-club discussion where attendees must have read a specific assigned "
              "book beforehand. False for author readings, talks, silent/communal reading sessions, "
              "'bring any book' clubs, and reading-aloud groups that read the text together on site.")
@@ -166,6 +170,8 @@ EVENT_SCHEMA = {
                     "summary": {"type": ["string", "null"], "description": SUMMARY_DESC},
                     "status": {"type": "string", "enum": STATUSES, "description": STATUS_DESC},
                     "assigned_book": {"type": "boolean", "description": BOOK_DESC},
+                    "few_left": {"type": "boolean", "description": FEW_DESC},
+                    "spots_left": {"type": ["integer", "null"], "description": SPOTS_DESC},
                     "is_offer": {"type": "boolean", "description": "True for a standing discount/membership offer rather than a dated event."},
                 },
                 "required": ["title", "start", "price_min", "summary", "status", "assigned_book", "is_offer"],
@@ -212,6 +218,8 @@ DETAIL_SCHEMA = {
     "properties": {
         "status": {"type": "string", "enum": STATUSES, "description": STATUS_DESC},
         "assigned_book": {"type": "boolean", "description": BOOK_DESC},
+        "few_left": {"type": "boolean", "description": FEW_DESC},
+        "spots_left": {"type": ["integer", "null"], "description": SPOTS_DESC},
         "price_min": {"type": ["number", "null"], "description": PRICE_DESC},
         "price_max": {"type": ["number", "null"]},
         "price_text": {"type": ["string", "null"], "description": "All prices exactly as written."},
@@ -356,6 +364,8 @@ def to_row(src: dict, e: dict) -> dict | None:
         "summary": (e.get("summary") or None),
         "status": "open" if src.get("ignore_status") else status_from(e),
         "ticket_url": e.get("ticket_url"),
+        "few_left": bool(e.get("few_left")) or (isinstance(e.get("spots_left"), int) and 0 < e["spots_left"] <= 5),
+        "spots_left": e.get("spots_left") if isinstance(e.get("spots_left"), int) else None,
         "last_seen": NOW.isoformat(),
     }
 
@@ -421,7 +431,8 @@ def run_page(src: dict, prev_fp: str | None):
 
 from concurrent.futures import ThreadPoolExecutor
 
-DETAIL_CAP = int(os.environ.get("DETAIL_CAP", "160"))
+DETAIL_FORCE = os.environ.get("RECHECK") == "true"
+DETAIL_CAP = int(os.environ.get("DETAIL_CAP", "400" if DETAIL_FORCE else "160"))
 
 
 IGNORE_STATUS: set = set()
@@ -452,6 +463,9 @@ def detail_one(ev: dict) -> str:
             patch["price_text"] = d["price_text"]
     if d.get("summary"):
         patch["summary"] = d["summary"][:200]
+    spots = d.get("spots_left") if isinstance(d.get("spots_left"), int) else None
+    patch["few_left"] = bool(d.get("few_left")) or (spots is not None and 0 < spots <= 5)
+    patch["spots_left"] = spots
     if d.get("registration_deadline"):
         dl, _ = parse_dt(d["registration_deadline"])
         if dl:
@@ -477,7 +491,7 @@ def detail_pass(cfg: list[dict], only: set | None = None):
             return False                      # no own page, the listing is all there is
         if e.get("status") in ("cancelled",):
             return False
-        if not e.get("checked_at") or (only and e["source_id"] in only):
+        if DETAIL_FORCE or not e.get("checked_at") or (only and e["source_id"] in only):
             return True
         age = NOW - datetime.fromisoformat(e["checked_at"])
         start = datetime.fromisoformat(e["start_at"])
@@ -541,14 +555,16 @@ def main():
                 # summary, deadline or a closed/cancelled status with an empty value
                 if not DRY:
                     cur = {r["id"]: r for r in sb("GET", f"events?source_id=eq.{src['id']}&select="
-                                                  "id,price_min,price_max,price_text,summary,registration_deadline,status,ticket_url")}
+                                                  "id,price_min,price_max,price_text,summary,registration_deadline,status,ticket_url,few_left,spots_left")}
                     for row in rows:
                         c = cur.get(row["id"])
                         if not c:
                             continue
-                        for k in ("price_min", "price_max", "price_text", "summary", "registration_deadline", "ticket_url"):
+                        for k in ("price_min", "price_max", "price_text", "summary", "registration_deadline", "ticket_url", "spots_left"):
                             if row.get(k) is None and c.get(k) is not None:
                                 row[k] = c[k]
+                        if c.get("few_left") and not row["few_left"]:
+                            row["few_left"] = True
                         if src.get("ignore_status"):
                             pass
                         elif row["status"] not in HIDDEN_STATUSES and c.get("status") in HIDDEN_STATUSES:

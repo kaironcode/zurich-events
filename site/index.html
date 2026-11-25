@@ -122,6 +122,14 @@ h3{font-size:13px;font-weight:700;color:var(--blue);margin:22px 0 4px;display:fl
           <output id="pmax-out">Any</output>
         </div>
         <div class="price">
+          <label for="sort">Sort</label>
+          <select id="sort" style="flex:1;min-height:36px;border:1.5px solid var(--line);border-radius:10px;padding:0 10px;background:var(--card);font-size:16px">
+            <option value="date">Date</option>
+            <option value="deadline">Registration closing soonest</option>
+            <option value="full">Almost full first</option>
+          </select>
+        </div>
+        <div class="price">
           <label for="from">From</label>
           <input id="from" type="date" style="flex:1;min-height:36px;border:1.5px solid var(--line);border-radius:10px;padding:0 10px;background:var(--card);font-size:16px">
         </div>

@@ -96,3 +96,8 @@ alter table events add column if not exists status text default 'unknown';
 alter table events add column if not exists checked_at timestamptz;
 alter table events add column if not exists ticket_url text;
 alter table prefs  add column if not exists from_date date;
+
+-- v3: availability and sort preference
+alter table events add column if not exists few_left boolean default false;
+alter table events add column if not exists spots_left int;
+alter table prefs  add column if not exists sort text default 'date';

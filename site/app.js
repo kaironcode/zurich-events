@@ -18,7 +18,7 @@ const safeUrl = u => /^https?:\/\//i.test(u || '') ? u : '#';
 
 let sb, user;
 let events = [], sources = [], swipes = new Map(), lastRun = null;
-let prefs = { hidden_sources: [], hidden_categories: [], price_max: null, show_unpriced: true, from_date: null };
+let prefs = { hidden_sources: [], hidden_categories: [], price_max: null, show_unpriced: true, from_date: null, sort: 'date' };
 const HIDDEN_STATUS = ['registration_closed', 'sold_out', 'cancelled'];
 let undoStack = [];
 let tab = 'discover';
@@ -32,9 +32,8 @@ const fmtTime = d => d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2
 const fmtPrice = e => {
   if (e.price_min == null) return null;
   if (+e.price_min === 0 && (e.price_max == null || +e.price_max === 0)) return 'Free';
-  const a = +e.price_min, b = e.price_max == null ? a : +e.price_max;
-  const f = n => Number.isInteger(n) ? n : n.toFixed(2);
-  return a === b ? `CHF ${f(a)}` : `CHF ${f(a)}–${f(b)}`;
+  const a = +e.price_min;
+  return `CHF ${Number.isInteger(a) ? a : a.toFixed(2)}`;
 };
 const endOf = e => {
   if (e.end_at) return new Date(e.end_at);
@@ -62,8 +61,21 @@ const fromOk = e => {
   if (!prefs.from_date || prefs.from_date <= todayStr()) return true;
   return new Date(e.start_at).toLocaleDateString('en-CA', { timeZone: tz }) >= prefs.from_date;
 };
+const byDate = (a, b) => new Date(a.start_at) - new Date(b.start_at);
+const SORTS = {
+  date: byDate,
+  deadline: (a, b) => {                      // registration closing soonest; no deadline goes last
+    const x = a.registration_deadline ? new Date(a.registration_deadline) : Infinity;
+    const y = b.registration_deadline ? new Date(b.registration_deadline) : Infinity;
+    return x - y || byDate(a, b);
+  },
+  full: (a, b) => {                          // almost full first, fewest spots first
+    const rank = e => e.few_left ? (e.spots_left || 50) : 1000;
+    return rank(a) - rank(b) || byDate(a, b);
+  },
+};
 const deck = () => events.filter(e => e.kind === 'event' && visible(e) && priceOk(e) && fromOk(e))
-  .sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
+  .sort(SORTS[prefs.sort] || byDate);
 const offers = () => events.filter(e => e.kind === 'offer' && visible(e));
 const saved = () => events.filter(e => swipes.get(e.id) === 'saved' && (e.kind === 'offer' || endOf(e) >= new Date()))
   .sort((a, b) => (a.start_at ? new Date(a.start_at) : Infinity) - (b.start_at ? new Date(b.start_at) : Infinity));
@@ -83,7 +95,7 @@ function cardHTML(e, cls = '') {
     ${e.venue ? `<div class="venue">${esc(e.venue)}</div>` : ''}
     <div class="tags">
       <span class="tag ${price ? 'price' : ''}">${esc(price || 'Price not listed')}</span>
-      ${e.price_text && price ? `<span class="tag">${esc(e.price_text.slice(0, 60))}</span>` : ''}
+      ${e.few_left ? `<span class="tag deadline">${e.spots_left ? esc(e.spots_left) + (e.spots_left === 1 ? ' spot' : ' spots') + ' left' : 'Few spots left'}</span>` : ''}
       ${dl ? `<span class="tag deadline">Register by ${esc(fmtDay(dl))}</span>` : ''}
     </div>
     <div class="foot"><span>${esc(srcName(e.source_id))}</span><a href="${esc(safeUrl(e.url))}" target="_blank" rel="noopener">Details ↗</a></div>
@@ -151,6 +163,7 @@ function renderChips() {
   const v = prefs.price_max == null ? PRICE_ANY : prefs.price_max;
   $('pmax').value = v; $('pmax-out').textContent = v >= PRICE_ANY ? 'Any' : v === 0 ? 'Free only' : `≤ CHF ${v}`;
   $('unpriced').checked = prefs.show_unpriced;
+  $('sort').value = SORTS[prefs.sort] ? prefs.sort : 'date';
   $('from').min = todayStr();
   $('from').value = prefs.from_date && prefs.from_date > todayStr() ? prefs.from_date : todayStr();
 }
@@ -185,8 +198,8 @@ let prefTimer;
 function savePrefs() {
   clearTimeout(prefTimer);
   prefTimer = setTimeout(async () => {
-    const { hidden_sources, hidden_categories, price_max, show_unpriced, from_date } = prefs;
-    const { error } = await sb.from('prefs').upsert({ user_id: user.id, hidden_sources, hidden_categories, price_max, show_unpriced, from_date, updated_at: new Date().toISOString() });
+    const { hidden_sources, hidden_categories, price_max, show_unpriced, from_date, sort } = prefs;
+    const { error } = await sb.from('prefs').upsert({ user_id: user.id, hidden_sources, hidden_categories, price_max, show_unpriced, from_date, sort, updated_at: new Date().toISOString() });
     if (error) toast('Could not save settings');
   }, 400);
 }
@@ -270,6 +283,7 @@ function bind() {
     renderChips(); renderDeck(); savePrefs();
   });
   $('unpriced').addEventListener('change', e => { prefs.show_unpriced = e.target.checked; renderDeck(); savePrefs(); });
+  $('sort').addEventListener('change', e => { prefs.sort = e.target.value; renderDeck(); savePrefs(); });
   $('from').addEventListener('change', e => { prefs.from_date = e.target.value && e.target.value > todayStr() ? e.target.value : null; renderDeck(); savePrefs(); });
   $('cats').addEventListener('click', e => {
     const b = e.target.closest('[data-chip]'); if (!b) return;
