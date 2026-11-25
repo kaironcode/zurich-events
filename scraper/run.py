@@ -383,7 +383,7 @@ def main():
                 rows = list({r["id"]: r for r in rows}.values())
                 # one detail lookup for new, unpriced events
                 for row in rows:
-                    if (src.get("details") and details_left > 0 and row["id"] not in existing
+                    if (src.get("details") and details_left > 0 and (only or row["id"] not in existing)
                             and row["price_min"] is None and row["url"] and row["url"] != src["url"]):
                         details_left -= 1
                         try:
