@@ -282,8 +282,17 @@ function bind() {
     $('send').disabled = true;
     const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
     $('send').disabled = false;
-    if (error) toast(error.message); else $('sent').hidden = false;
+    if (error) toast(error.message); else { $('codebox').hidden = false; $('code').focus(); }
   };
+  $('verify').onclick = async () => {
+    const email = $('email').value.trim(), token = $('code').value.replace(/\D/g, '');
+    if (!email || token.length < 6) return toast('Enter the code from the email');
+    $('verify').disabled = true;
+    const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
+    $('verify').disabled = false;
+    if (error) toast(error.message.includes('expired') ? 'Code expired, send a new one' : error.message);
+  };
+  $('code').addEventListener('keydown', e => { if (e.key === 'Enter') $('verify').click(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && user) load().catch(() => {}); });
 }
 function toggle(arr, v, force) {

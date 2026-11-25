@@ -98,10 +98,14 @@ h3{font-size:13px;font-weight:700;color:var(--blue);margin:22px 0 4px;display:fl
 
   <section id="login" class="login" hidden>
     <h2 style="margin:0;font-size:22px">Sign in</h2>
-    <p>Your saved and discarded events sync between your phone and laptop. Enter your email and open the link you receive.</p>
+    <p>Your saved and discarded events sync between your phone and laptop. Enter your email to get a sign-in code.</p>
     <input id="email" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email">
-    <button id="send">Send sign-in link</button>
-    <p id="sent" hidden>Check your inbox and open the link on this device.</p>
+    <button id="send">Send code</button>
+    <div id="codebox" hidden style="display:grid;gap:12px">
+      <p>We emailed you a 6-digit code. Enter it here (this works inside the home-screen app too).</p>
+      <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456" aria-label="Sign-in code" style="letter-spacing:.3em;font-size:20px;text-align:center">
+      <button id="verify">Sign in</button>
+    </div>
   </section>
 
   <div id="main" hidden style="display:flex;flex-direction:column;flex:1">
