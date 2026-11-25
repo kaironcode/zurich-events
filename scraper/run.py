@@ -463,6 +463,8 @@ def detail_one(ev: dict) -> str:
 def detail_pass(cfg: list[dict], only: set | None = None):
     listing_urls = {s["url"].rstrip("/") for s in cfg}
     IGNORE_STATUS.update(s["id"] for s in cfg if s.get("ignore_status"))
+    for sid in IGNORE_STATUS:
+        sb("PATCH", f"events?source_id=eq.{sid}&status=in.(sold_out,registration_closed)", json={"status": "open"})
     now = NOW.strftime("%Y-%m-%dT%H:%M:%SZ")
     evs = sb("GET", f"events?kind=eq.event&start_at=gte.{now}&select=id,title,start_at,url,ticket_url,status,checked_at,source_id"
                     "&order=start_at.asc&limit=2000")
