@@ -383,7 +383,17 @@ def main():
             status["fingerprint"] = fp
             if items is None:
                 print(f"= {src['id']}: unchanged")
+                if src.get("offer"):
+                    o = src["offer"]
+                    upsert("events", [to_row(src, {"title": o["title"], "start": None, "is_offer": True,
+                                                   "summary": o.get("summary"), "price_min": o.get("price"),
+                                                   "price_max": o.get("price"), "url": src["url"]})])
             else:
+                if src.get("offer"):
+                    o = src["offer"]
+                    items = list(items) + [{"title": o["title"], "start": None, "is_offer": True,
+                                            "summary": o.get("summary"), "price_min": o.get("price"),
+                                            "price_max": o.get("price"), "url": src["url"]}]
                 rows = [r for r in (to_row(src, e) for e in items) if r]
                 rows = list({r["id"]: r for r in rows}.values())
                 # one detail lookup for new, unpriced events

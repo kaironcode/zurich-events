@@ -8,6 +8,8 @@
 # aggregator: true  -> big listing; only events matching INTERESTS are kept
 # details: true     -> for new events without a price, open the event page once to look for price/deadline
 # enabled: false    -> not checked at all (hiding a source in the app is separate and per user)
+# offer: {title, summary, price}  -> a standing offer that is always shown (from your own notes),
+#                                    in addition to whatever is found on the page
 
 sources:
   # ---------- Book clubs ----------
@@ -125,6 +127,7 @@ sources:
     category: offer
     kind: offer
     url: https://tanzquotient.org/en/courses/
+    offer: {title: "Tanzquotient: cheap dance courses for students", summary: "Ballroom, swing, salsa and more at student prices; new courses each semester."}
 
   # ---------- Events & music ----------
   - id: calmaguide
@@ -196,15 +199,18 @@ sources:
     category: offer
     kind: offer
     url: https://www.opernhaus.ch/en/service/fuer-alle/club-jung/
+    offer: {title: "Club Jung: opera and ballet for CHF 18", summary: "Free membership (one-time CHF 20 fee) via the Opernhaus app; CHF 18 tickets for selected shows and last-minute.", price: 18}
   - id: klubz
     name: klubZ · Tonhalle
     category: offer
     url: https://www.tonhalle-orchester.ch/engagement/klubz/klubz-events/
+    offer: {title: "klubZ: Tonhalle concerts for ages 18–40", summary: "klubZ events with artists for CHF 20, plus discounted tickets all season.", price: 20}
   - id: kunsthaus
     name: Kunsthaus Zürich
     category: offer
     kind: offer
     url: https://www.kunsthaus.ch/en/
+    offer: {title: "Kunsthaus Zürich: free on Wednesdays", summary: "Collection free to visit every Wednesday.", price: 0}
   - id: schauspielhaus
     name: Schauspielhaus concessions
     category: offer
