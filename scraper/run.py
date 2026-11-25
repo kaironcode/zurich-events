@@ -547,7 +547,9 @@ def main():
                         for k in ("price_min", "price_max", "price_text", "summary", "registration_deadline", "ticket_url"):
                             if row.get(k) is None and c.get(k) is not None:
                                 row[k] = c[k]
-                        if row["status"] not in HIDDEN_STATUSES and c.get("status") in HIDDEN_STATUSES:
+                        if src.get("ignore_status"):
+                            pass
+                        elif row["status"] not in HIDDEN_STATUSES and c.get("status") in HIDDEN_STATUSES:
                             row["status"] = c["status"]
                         elif row["status"] == "unknown" and c.get("status"):
                             row["status"] = c["status"]
