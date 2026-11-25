@@ -57,7 +57,9 @@ SB_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 def sb(method: str, path: str, **kw):
     if DRY:
         return []
-    h = {"apikey": SB_KEY, "Authorization": f"Bearer {SB_KEY}", "Content-Type": "application/json"}
+    h = {"apikey": SB_KEY, "Content-Type": "application/json"}
+    if SB_KEY.startswith("eyJ"):  # legacy JWT keys also go in Authorization; new sb_secret_ keys must not
+        h["Authorization"] = f"Bearer {SB_KEY}"
     h.update(kw.pop("headers", {}))
     r = requests.request(method, f"{SB_URL}/rest/v1/{path}", headers=h, timeout=60, **kw)
     if r.status_code >= 300:

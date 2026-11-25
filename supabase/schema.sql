@@ -83,3 +83,10 @@ create policy "own swipes" on swipes for all
 drop policy if exists "own prefs" on prefs;
 create policy "own prefs" on prefs for all
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- API access (RLS above still decides which rows each role sees)
+grant usage on schema public to anon, authenticated, service_role;
+grant select on sources, events, runs to anon, authenticated;
+grant select, insert, update, delete on swipes, prefs to authenticated;
+grant all on all tables in schema public to service_role;
+grant usage, select on all sequences in schema public to service_role;
