@@ -98,14 +98,12 @@ h3{font-size:13px;font-weight:700;color:var(--blue);margin:22px 0 4px;display:fl
 
   <section id="login" class="login" hidden>
     <h2 style="margin:0;font-size:22px">Sign in</h2>
-    <p>Your saved and discarded events sync between your phone and laptop. Enter your email to get a sign-in code.</p>
-    <input id="email" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email">
-    <button id="send">Send code</button>
-    <div id="codebox" hidden style="display:grid;gap:12px">
-      <p>We emailed you a 6-digit code. Enter it here (this works inside the home-screen app too).</p>
-      <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456" aria-label="Sign-in code" style="letter-spacing:.3em;font-size:20px;text-align:center">
-      <button id="verify">Sign in</button>
-    </div>
+    <p>Your saved and discarded events sync between your phone and laptop.</p>
+    <input id="email" type="email" autocomplete="username" placeholder="you@example.com" aria-label="Email">
+    <input id="password" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password">
+    <button id="signin">Sign in</button>
+    <p style="font-size:14px">No password yet? <a href="#" id="send" style="color:var(--blue)">Email me a sign-in link</a>, open it in Safari, then set a password under Sources. The home-screen app needs the password.</p>
+    <p id="sent" hidden style="font-size:14px">Link sent. Open it on this device.</p>
   </section>
 
   <div id="main" hidden style="display:flex;flex-direction:column;flex:1">
@@ -137,6 +135,12 @@ h3{font-size:13px;font-weight:700;color:var(--blue);margin:22px 0 4px;display:fl
     <section id="tab-saved" hidden><ul class="list" id="saved"></ul></section>
     <section id="tab-offers" hidden><ul class="list" id="offers"></ul></section>
     <section id="tab-sources" hidden><div id="sources"></div>
+      <h3>Account</h3>
+      <form id="pwform" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">
+        <input id="newpw" type="password" autocomplete="new-password" minlength="8" placeholder="New password (min. 8 characters)" aria-label="New password" style="flex:1 1 200px;min-height:44px;padding:0 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--card)">
+        <button style="min-height:44px;padding:0 16px;border:0;border-radius:10px;background:var(--blue);color:#fff;font-weight:700">Set password</button>
+      </form>
+      <p style="color:var(--soft);font-size:14px;margin:4px 0 0">Use this password to sign in from the home-screen app.</p>
       <p style="color:var(--soft);font-size:14px;margin-top:18px">Hidden sources keep being checked; their events come back when you switch them on. <a href="#" id="logout" style="color:var(--blue)">Sign out</a></p>
     </section>
   </div>

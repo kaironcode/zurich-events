@@ -277,22 +277,28 @@ function bind() {
     if (s) swipe(s.dataset.id, s.dataset.swipe);
   });
   $('logout').onclick = async e => { e.preventDefault(); await sb.auth.signOut(); location.reload(); };
-  $('send').onclick = async () => {
-    const email = $('email').value.trim(); if (!email) return;
-    $('send').disabled = true;
-    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
-    $('send').disabled = false;
-    if (error) toast(error.message); else { $('codebox').hidden = false; $('code').focus(); }
+  $('signin').onclick = async () => {
+    const email = $('email').value.trim(), password = $('password').value;
+    if (!email || !password) return toast('Enter email and password');
+    $('signin').disabled = true;
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    $('signin').disabled = false;
+    if (error) toast(/invalid/i.test(error.message) ? 'Wrong email or password' : error.message);
   };
-  $('verify').onclick = async () => {
-    const email = $('email').value.trim(), token = $('code').value.replace(/\D/g, '');
-    if (!email || token.length < 6) return toast('Enter the code from the email');
-    $('verify').disabled = true;
-    const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
-    $('verify').disabled = false;
-    if (error) toast(error.message.includes('expired') ? 'Code expired, send a new one' : error.message);
+  $('password').addEventListener('keydown', e => { if (e.key === 'Enter') $('signin').click(); });
+  $('send').onclick = async e => {
+    e.preventDefault();
+    const email = $('email').value.trim(); if (!email) return toast('Enter your email first');
+    const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: location.origin + location.pathname } });
+    if (error) toast(error.message); else $('sent').hidden = false;
   };
-  $('code').addEventListener('keydown', e => { if (e.key === 'Enter') $('verify').click(); });
+  $('pwform').addEventListener('submit', async e => {
+    e.preventDefault();
+    const password = $('newpw').value;
+    if (password.length < 8) return toast('At least 8 characters');
+    const { error } = await sb.auth.updateUser({ password });
+    if (error) toast(error.message); else { $('newpw').value = ''; toast('Password set. Use it in the home-screen app.'); }
+  });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && user) load().catch(() => {}); });
 }
 function toggle(arr, v, force) {
