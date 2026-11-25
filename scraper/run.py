@@ -354,7 +354,7 @@ def to_row(src: dict, e: dict) -> dict | None:
         "registration_deadline": deadline.isoformat() if deadline else None,
         "url": e.get("url") or src["url"],
         "summary": (e.get("summary") or None),
-        "status": status_from(e),
+        "status": "open" if src.get("ignore_status") else status_from(e),
         "ticket_url": e.get("ticket_url"),
         "last_seen": NOW.isoformat(),
     }
@@ -424,6 +424,9 @@ from concurrent.futures import ThreadPoolExecutor
 DETAIL_CAP = int(os.environ.get("DETAIL_CAP", "160"))
 
 
+IGNORE_STATUS: set = set()
+
+
 def detail_one(ev: dict) -> str:
     target = ev.get("ticket_url") or ev["url"]
     patch = {"checked_at": datetime.now(timezone.utc).isoformat()}
@@ -440,7 +443,7 @@ def detail_one(ev: dict) -> str:
         sb("DELETE", f"events?id=eq.{ev['id']}")
         return f"  - {ev['title'][:50]}: book discussion, removed"
     st = status_from(d)
-    if st != "unknown":
+    if st != "unknown" and ev.get("source_id") not in IGNORE_STATUS:
         patch["status"] = st
     if d.get("price_min") is not None:
         patch["price_min"] = d["price_min"]
@@ -459,6 +462,7 @@ def detail_one(ev: dict) -> str:
 
 def detail_pass(cfg: list[dict], only: set | None = None):
     listing_urls = {s["url"].rstrip("/") for s in cfg}
+    IGNORE_STATUS.update(s["id"] for s in cfg if s.get("ignore_status"))
     now = NOW.strftime("%Y-%m-%dT%H:%M:%SZ")
     evs = sb("GET", f"events?kind=eq.event&start_at=gte.{now}&select=id,title,start_at,url,ticket_url,status,checked_at,source_id"
                     "&order=start_at.asc&limit=2000")

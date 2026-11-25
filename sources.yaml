@@ -7,6 +7,7 @@
 # category: book | read | philo | art | dance | event | offer
 # aggregator: true  -> big listing; only events matching INTERESTS are kept
 # (every event with its own page is opened by the detail pass for status, student price and a short description)
+# ignore_status: true -> never hide this source's events as closed/sold out (misleading shop labels)
 # enabled: false    -> not checked at all (hiding a source in the app is separate and per user)
 # offer: {title, summary, price}  -> a standing offer that is always shown (from your own notes),
 #                                    in addition to whatever is found on the page
@@ -21,6 +22,7 @@ sources:
     name: Vastela Books
     category: book
     url: https://www.vastelabooks.com/collections/events
+    ignore_status: true   # free walk-in events show Shopify's 'Sold out' label
   - id: zurichbookclub
     name: Zurich Book Club
     category: book
