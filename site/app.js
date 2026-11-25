@@ -1,9 +1,10 @@
 {
 const CATS = [
-  { id: 'book', name: 'Book clubs & literature' },
+  { id: 'book', name: 'Literature & readings' },
   { id: 'read', name: 'Reading together' },
   { id: 'philo', name: 'Philosophy & talks' },
   { id: 'art', name: 'Art & workshops' },
+  { id: 'dance', name: 'Dance' },
   { id: 'event', name: 'Events & music' },
   { id: 'offer', name: 'Offers & discounts' },
 ];
@@ -17,7 +18,8 @@ const safeUrl = u => /^https?:\/\//i.test(u || '') ? u : '#';
 
 let sb, user;
 let events = [], sources = [], swipes = new Map(), lastRun = null;
-let prefs = { hidden_sources: [], hidden_categories: [], price_max: null, show_unpriced: true };
+let prefs = { hidden_sources: [], hidden_categories: [], price_max: null, show_unpriced: true, from_date: null };
+const HIDDEN_STATUS = ['registration_closed', 'sold_out', 'cancelled'];
 let undoStack = [];
 let tab = 'discover';
 
@@ -46,6 +48,7 @@ function visible(e) {
   if (swipes.has(e.id)) return false;                                     // A) swiped
   if (e.kind === 'event' && (!e.start_at || endOf(e) < now)) return false; // B) passed
   if (e.registration_deadline && new Date(e.registration_deadline) < now) return false; // C) registration closed
+  if (HIDDEN_STATUS.includes(e.status)) return false;                     // closed, sold out or cancelled
   if (prefs.hidden_sources.includes(e.source_id)) return false;
   if (prefs.hidden_categories.includes(e.category)) return false;
   return true;
@@ -54,7 +57,12 @@ function priceOk(e) {
   if (e.price_min == null) return prefs.show_unpriced;
   return prefs.price_max == null || +e.price_min <= prefs.price_max;
 }
-const deck = () => events.filter(e => e.kind === 'event' && visible(e) && priceOk(e))
+const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: tz });
+const fromOk = e => {
+  if (!prefs.from_date || prefs.from_date <= todayStr()) return true;
+  return new Date(e.start_at).toLocaleDateString('en-CA', { timeZone: tz }) >= prefs.from_date;
+};
+const deck = () => events.filter(e => e.kind === 'event' && visible(e) && priceOk(e) && fromOk(e))
   .sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
 const offers = () => events.filter(e => e.kind === 'offer' && visible(e));
 const saved = () => events.filter(e => swipes.get(e.id) === 'saved' && (e.kind === 'offer' || endOf(e) >= new Date()))
@@ -71,13 +79,13 @@ function cardHTML(e, cls = '') {
     <div class="cat"><span class="dot"></span>${esc(catName(e.category))}</div>
     <div class="when">${esc(fmtDay(s))}<small>${e.all_day ? 'All day' : esc(fmtTime(s)) + (e.end_at ? '–' + esc(fmtTime(new Date(e.end_at))) : '')}</small></div>
     <h2>${esc(e.title)}</h2>
+    ${e.summary ? `<div class="sum">${esc(e.summary)}</div>` : ''}
     ${e.venue ? `<div class="venue">${esc(e.venue)}</div>` : ''}
     <div class="tags">
       <span class="tag ${price ? 'price' : ''}">${esc(price || 'Price not listed')}</span>
       ${e.price_text && price ? `<span class="tag">${esc(e.price_text.slice(0, 60))}</span>` : ''}
       ${dl ? `<span class="tag deadline">Register by ${esc(fmtDay(dl))}</span>` : ''}
     </div>
-    ${e.summary ? `<div class="sum">${esc(e.summary)}</div>` : ''}
     <div class="foot"><span>${esc(srcName(e.source_id))}</span><a href="${esc(safeUrl(e.url))}" target="_blank" rel="noopener">Details ↗</a></div>
   </article>`;
 }
@@ -143,6 +151,8 @@ function renderChips() {
   const v = prefs.price_max == null ? PRICE_ANY : prefs.price_max;
   $('pmax').value = v; $('pmax-out').textContent = v >= PRICE_ANY ? 'Any' : v === 0 ? 'Free only' : `≤ CHF ${v}`;
   $('unpriced').checked = prefs.show_unpriced;
+  $('from').min = todayStr();
+  $('from').value = prefs.from_date && prefs.from_date > todayStr() ? prefs.from_date : todayStr();
 }
 
 function renderStatus() {
@@ -175,8 +185,8 @@ let prefTimer;
 function savePrefs() {
   clearTimeout(prefTimer);
   prefTimer = setTimeout(async () => {
-    const { hidden_sources, hidden_categories, price_max, show_unpriced } = prefs;
-    const { error } = await sb.from('prefs').upsert({ user_id: user.id, hidden_sources, hidden_categories, price_max, show_unpriced, updated_at: new Date().toISOString() });
+    const { hidden_sources, hidden_categories, price_max, show_unpriced, from_date } = prefs;
+    const { error } = await sb.from('prefs').upsert({ user_id: user.id, hidden_sources, hidden_categories, price_max, show_unpriced, from_date, updated_at: new Date().toISOString() });
     if (error) toast('Could not save settings');
   }, 400);
 }
@@ -260,6 +270,7 @@ function bind() {
     renderChips(); renderDeck(); savePrefs();
   });
   $('unpriced').addEventListener('change', e => { prefs.show_unpriced = e.target.checked; renderDeck(); savePrefs(); });
+  $('from').addEventListener('change', e => { prefs.from_date = e.target.value && e.target.value > todayStr() ? e.target.value : null; renderDeck(); savePrefs(); });
   $('cats').addEventListener('click', e => {
     const b = e.target.closest('[data-chip]'); if (!b) return;
     toggle(prefs.hidden_categories, b.dataset.chip); renderAll(); savePrefs();

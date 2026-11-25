@@ -90,3 +90,9 @@ grant select on sources, events, runs to anon, authenticated;
 grant select, insert, update, delete on swipes, prefs to authenticated;
 grant all on all tables in schema public to service_role;
 grant usage, select on all sequences in schema public to service_role;
+
+-- v2: event status, detail pass bookkeeping, ticket links, "from" date
+alter table events add column if not exists status text default 'unknown';
+alter table events add column if not exists checked_at timestamptz;
+alter table events add column if not exists ticket_url text;
+alter table prefs  add column if not exists from_date date;

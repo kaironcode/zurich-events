@@ -30,7 +30,6 @@ NOW = datetime.now(timezone.utc)
 HORIZON_DAYS = 60          # ignore events further out than this
 AGG_HORIZON_DAYS = 42      # aggregators: next six weeks only
 MAX_TEXT = 45000           # characters of page text sent to Claude
-MAX_DETAIL_FETCHES = 60    # per run, across all sources (clubs/venues first, aggregators last)
 MODEL = os.environ.get("MODEL", "claude-haiku-5-5")
 DRY = os.environ.get("DRY_RUN") == "1"
 
@@ -132,6 +131,21 @@ def ask_json(instructions: str, content: str, schema: dict, tool: str) -> dict:
     raise RuntimeError(f"Claude API kept failing ({r.status_code})")
 
 
+STATUSES = ["open", "registration_closed", "sold_out", "cancelled", "unknown"]
+HIDDEN_STATUSES = {"registration_closed", "sold_out", "cancelled"}
+PRICE_DESC = ("Price in CHF that a university student with a Legi pays: if several prices are listed, use the "
+              "student/reduced/Legi/under-26 price; otherwise the regular price. 0 if explicitly free. "
+              "null only if no price appears anywhere in the text.")
+SUMMARY_DESC = "Very brief English description of what the event is, max 12 words, e.g. 'Author reading and talk about her new novel'."
+STATUS_DESC = ("cancelled if cancelled/abgesagt/entfällt; sold_out if ausverkauft/sold out/full/no seats; "
+               "registration_closed if registration, booking or ticket sales are closed (e.g. 'geschlossen', "
+               "'Anmeldung geschlossen', 'closed', 'Verkauf beendet', sale/registration end date passed); "
+               "open if tickets/registration are available or entry needs no registration; else unknown. "
+               "Words like 'geschlossen' in a venue's opening hours (e.g. 'Montag geschlossen') do NOT count.")
+BOOK_DESC = ("True only if this is a book-club discussion where attendees must have read a specific assigned "
+             "book beforehand. False for author readings, talks, silent/communal reading sessions, "
+             "'bring any book' clubs, and reading-aloud groups that read the text together on site.")
+
 EVENT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -144,15 +158,17 @@ EVENT_SCHEMA = {
                     "start": {"type": ["string", "null"], "description": "ISO 8601 local Zurich time, e.g. 2026-12-02T19:30. Date only if no time."},
                     "end": {"type": ["string", "null"]},
                     "venue": {"type": ["string", "null"]},
-                    "price_min": {"type": ["number", "null"], "description": "Lowest price in CHF. 0 if explicitly free. null if not stated."},
-                    "price_max": {"type": ["number", "null"]},
-                    "price_text": {"type": ["string", "null"], "description": "Price exactly as written, e.g. 'CHF 25, under 21 half price' or 'Eintritt frei'."},
+                    "price_min": {"type": ["number", "null"], "description": PRICE_DESC},
+                    "price_max": {"type": ["number", "null"], "description": "Highest student price in CHF if a range; else same as price_min."},
+                    "price_text": {"type": ["string", "null"], "description": "All prices exactly as written, e.g. 'CHF 25 / Studierende CHF 15'."},
                     "registration_deadline": {"type": ["string", "null"], "description": "ISO 8601 if a sign-up/sale deadline is stated."},
                     "url": {"type": ["string", "null"], "description": "Absolute link to this event's own page if present."},
-                    "summary": {"type": ["string", "null"], "description": "One sentence, max 160 chars, same language as source."},
+                    "summary": {"type": ["string", "null"], "description": SUMMARY_DESC},
+                    "status": {"type": "string", "enum": STATUSES, "description": STATUS_DESC},
+                    "assigned_book": {"type": "boolean", "description": BOOK_DESC},
                     "is_offer": {"type": "boolean", "description": "True for a standing discount/membership offer rather than a dated event."},
                 },
-                "required": ["title", "start", "price_min", "is_offer"],
+                "required": ["title", "start", "price_min", "summary", "status", "assigned_book", "is_offer"],
             },
         }
     },
@@ -173,6 +189,8 @@ def claude_extract(text: str, src: dict, mode: str = "list") -> list[dict]:
         "without dated listings, emit the concrete occurrences within the next 14 days, "
         "using the stated time, and copy any stated price.",
         "Merge duplicates. Keep titles short and in the original language.",
+        "Set status from labels like 'Cancelled', 'Abgesagt', 'Sold out', 'Ausverkauft', 'Registration closed', "
+        "'Anmeldung geschlossen', 'full'. Always write a brief English summary.",
     ]
     if src.get("aggregator"):
         rules.append(f"This is a large listing: keep ONLY events matching these interests: {INTERESTS}. "
@@ -185,14 +203,37 @@ def claude_extract(text: str, src: dict, mode: str = "list") -> list[dict]:
                      "Skip offers that need a bank account, a newspaper or theatre subscription, a club or "
                      "union membership, a disability card, refugee status, group or school-class bookings. "
                      "Merge closely related offers into one item.")
-    if mode == "detail":
-        rules = [
-            f"Today is {today}. This is the detail page of one event: \"{src['_title']}\".",
-            "Return exactly one item for that event with its price and registration/sale deadline "
-            "if stated. Never guess. Unknown = null.",
-        ]
     rules.append("Each event's url must be copied from the <link> next to it in the text, if any.")
     return ask_json("\n".join(rules), text[:MAX_TEXT], EVENT_SCHEMA, "save_events").get("events", [])
+
+
+DETAIL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "status": {"type": "string", "enum": STATUSES, "description": STATUS_DESC},
+        "assigned_book": {"type": "boolean", "description": BOOK_DESC},
+        "price_min": {"type": ["number", "null"], "description": PRICE_DESC},
+        "price_max": {"type": ["number", "null"]},
+        "price_text": {"type": ["string", "null"], "description": "All prices exactly as written."},
+        "registration_deadline": {"type": ["string", "null"], "description": "ISO 8601 if a sign-up/sale deadline is stated."},
+        "summary": {"type": ["string", "null"], "description": SUMMARY_DESC},
+    },
+    "required": ["status", "assigned_book", "price_min", "summary"],
+}
+
+
+def claude_detail(text: str, ev: dict) -> dict:
+    today = NOW.astimezone(TZ).strftime("%A %Y-%m-%d")
+    when = ev.get("start_at") or ""
+    rules = [
+        f"Today is {today} (Europe/Zurich). This page belongs to ONE event: \"{ev['title']}\" on {when[:16]}.",
+        "If the page lists several dates or several events, answer only for this one.",
+        "Read the whole text, including the bottom of the page and any ticket/registration box, then return "
+        "its status, the student price, any registration/sale deadline and a brief English summary. "
+        "Prices are usually written as 'CHF 25', 'Fr. 25.-', '25.00 CHF', 'Eintritt: 15/10' or 'Kosten'. "
+        "Never guess; unknown = null.",
+    ]
+    return ask_json("\n".join(rules), text[:30000], DETAIL_SCHEMA, "event_detail")
 
 
 def claude_filter(lines: list[str]) -> set[int]:
@@ -264,7 +305,7 @@ def price_from_text(t: str):
 
 def to_row(src: dict, e: dict) -> dict | None:
     title = (e.get("title") or "").strip()
-    if not title:
+    if not title or e.get("assigned_book"):
         return None
     start, all_day = parse_dt(e.get("start"))
     end, _ = parse_dt(e.get("end"))
@@ -296,6 +337,8 @@ def to_row(src: dict, e: dict) -> dict | None:
         "registration_deadline": deadline.isoformat() if deadline else None,
         "url": e.get("url") or src["url"],
         "summary": (e.get("summary") or None),
+        "status": e.get("status") if e.get("status") in STATUSES else "unknown",
+        "ticket_url": e.get("ticket_url"),
         "last_seen": NOW.isoformat(),
     }
 
@@ -326,7 +369,10 @@ def run_ical(src: dict, prev_fp: str | None):
         desc = str(ve.get("DESCRIPTION", ""))
         title = str(ve.get("SUMMARY", "")).strip()
         pmin, pmax = price_from_text(desc)
-        out.append({
+        links = [u for u in re.findall(r"https?://[^\s<>\")\]]+", desc) if "meetup.com" not in u
+                 and "whatsapp" not in u and "chat." not in u]
+        status = "cancelled" if str(ve.get("STATUS", "")).upper() == "CANCELLED" or "cancel" in title.lower() else "unknown"
+        out.append({"ticket_url": links[0] if links else None, "status": status,
             "title": title, "start": start.isoformat(), "end": end.isoformat() if end else None,
             "venue": str(ve.get("LOCATION", "")) or None, "price_min": pmin, "price_max": pmax,
             "price_text": None, "url": str(ve.get("URL", "")) or None,
@@ -348,6 +394,78 @@ def run_page(src: dict, prev_fp: str | None):
     if fp == prev_fp:
         return fp, None
     return fp, claude_extract(text, src)
+
+
+# ---------------------------------------------------------------- detail pass
+#
+# Opens each event's own page (or the ticket link from a Meetup description) to read
+# status, student price, deadline and a short description. New events are checked first,
+# then events coming up soon are re-checked so closed registrations disappear.
+
+from concurrent.futures import ThreadPoolExecutor
+
+DETAIL_CAP = int(os.environ.get("DETAIL_CAP", "160"))
+
+
+def detail_one(ev: dict) -> str:
+    target = ev.get("ticket_url") or ev["url"]
+    patch = {"checked_at": datetime.now(timezone.utc).isoformat()}
+    try:
+        r = fetch(target)
+        text = page_text(r.text, r.url)
+        if len(text) < 150:
+            raise RuntimeError("page has almost no text")
+        d = claude_detail(text, ev)
+    except Exception as ex:
+        sb("PATCH", f"events?id=eq.{ev['id']}", json=patch)
+        return f"  ? {ev['title'][:50]}: {type(ex).__name__}"
+    if d.get("assigned_book"):
+        sb("DELETE", f"events?id=eq.{ev['id']}")
+        return f"  - {ev['title'][:50]}: book discussion, removed"
+    if d.get("status") in STATUSES and d["status"] != "unknown":
+        patch["status"] = d["status"]
+    if d.get("price_min") is not None:
+        patch["price_min"] = d["price_min"]
+        patch["price_max"] = d.get("price_max") if d.get("price_max") is not None else d["price_min"]
+        if d.get("price_text"):
+            patch["price_text"] = d["price_text"]
+    if d.get("summary"):
+        patch["summary"] = d["summary"][:200]
+    if d.get("registration_deadline"):
+        dl, _ = parse_dt(d["registration_deadline"])
+        if dl:
+            patch["registration_deadline"] = dl.isoformat()
+    sb("PATCH", f"events?id=eq.{ev['id']}", json=patch)
+    return f"  ✓ {ev['title'][:50]}: {patch.get('status', '-')}, {patch.get('price_min', '-')}"
+
+
+def detail_pass(cfg: list[dict]):
+    listing_urls = {s["url"].rstrip("/") for s in cfg}
+    now = NOW.strftime("%Y-%m-%dT%H:%M:%SZ")
+    evs = sb("GET", f"events?kind=eq.event&start_at=gte.{now}&select=id,title,start_at,url,ticket_url,status,checked_at,source_id"
+                    "&order=start_at.asc&limit=2000")
+    soon = NOW + timedelta(days=10)
+
+    def due(e):
+        if not (e.get("url") or e.get("ticket_url")):
+            return False
+        if (e.get("ticket_url") is None) and e["url"].rstrip("/") in listing_urls:
+            return False                      # no own page, the listing is all there is
+        if e.get("status") in ("cancelled",):
+            return False
+        if not e.get("checked_at"):
+            return True
+        age = NOW - datetime.fromisoformat(e["checked_at"])
+        start = datetime.fromisoformat(e["start_at"])
+        return (start < soon and age > timedelta(hours=20)) or age > timedelta(days=4)
+
+    todo = [e for e in evs if due(e)]
+    todo.sort(key=lambda e: (e.get("checked_at") is not None, e["start_at"]))
+    todo = todo[:DETAIL_CAP]
+    print(f"\nDetail pass: {len(todo)} events")
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for line in pool.map(detail_one, todo):
+            print(line)
 
 
 # ---------------------------------------------------------------- main
@@ -372,7 +490,6 @@ def main():
     run_id = run[0]["id"] if run else None
 
     ok = failed = new = 0
-    details_left = MAX_DETAIL_FETCHES
     notes = []
     for src in cfg:
         status = {"id": src["id"], "last_checked": NOW.isoformat()}
@@ -396,24 +513,22 @@ def main():
                                             "price_max": o.get("price"), "url": src["url"]}]
                 rows = [r for r in (to_row(src, e) for e in items) if r]
                 rows = list({r["id"]: r for r in rows}.values())
-                # one detail lookup for new, unpriced events
-                for row in rows:
-                    if (src.get("details") and details_left > 0 and (only or row["id"] not in existing)
-                            and row["price_min"] is None and row["url"] and row["url"] != src["url"]):
-                        details_left -= 1
-                        try:
-                            d = fetch(row["url"])
-                            info = claude_extract(page_text(d.text, d.url), {**src, "_title": row["title"]}, "detail")
-                            if info:
-                                i = info[0]
-                                if i.get("price_min") is not None:
-                                    row["price_min"], row["price_max"] = i["price_min"], i.get("price_max") or i["price_min"]
-                                    row["price_text"] = i.get("price_text")
-                                if i.get("registration_deadline"):
-                                    dl, _ = parse_dt(i["registration_deadline"])
-                                    row["registration_deadline"] = dl.isoformat() if dl else None
-                        except Exception as ex:  # detail page is optional
-                            print(f"  detail failed {row['url']}: {ex}")
+                # keep what the detail pass already found: a listing never erases a known price,
+                # summary, deadline or a closed/cancelled status with an empty value
+                if not DRY:
+                    cur = {r["id"]: r for r in sb("GET", f"events?source_id=eq.{src['id']}&select="
+                                                  "id,price_min,price_max,price_text,summary,registration_deadline,status,ticket_url")}
+                    for row in rows:
+                        c = cur.get(row["id"])
+                        if not c:
+                            continue
+                        for k in ("price_min", "price_max", "price_text", "summary", "registration_deadline", "ticket_url"):
+                            if row.get(k) is None and c.get(k) is not None:
+                                row[k] = c[k]
+                        if row["status"] not in HIDDEN_STATUSES and c.get("status") in HIDDEN_STATUSES:
+                            row["status"] = c["status"]
+                        elif row["status"] == "unknown" and c.get("status"):
+                            row["status"] = c["status"]
                 fresh = [r for r in rows if r["id"] not in existing]
                 seen = [r for r in rows if r["id"] in existing]
                 new += len(fresh)
@@ -440,6 +555,17 @@ def main():
             traceback.print_exc(limit=1)
         if not DRY:
             sb("PATCH", f"sources?id=eq.{src['id']}", json=status)
+
+    if not DRY:
+        detail_pass(cfg)
+
+    if not DRY and not only:
+        active = {s["id"] for s in cfg}
+        for r in sb("GET", "sources?select=id"):
+            if r["id"] not in active:
+                sb("DELETE", f"events?source_id=eq.{r['id']}")
+                sb("DELETE", f"sources?id=eq.{r['id']}")
+                print(f"- removed disabled source {r['id']}")
 
     # upcoming-count per source, for the settings screen
     if not DRY:

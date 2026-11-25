@@ -4,9 +4,9 @@
 #   page  - fetch the HTML, strip it to text, let Claude extract events (default)
 #   ical  - an iCalendar feed, parsed directly (Meetup groups)
 #   offer - a page describing a standing discount/offer; becomes one "offer" card
-# category: book | read | philo | art | event | offer
+# category: book | read | philo | art | dance | event | offer
 # aggregator: true  -> big listing; only events matching INTERESTS are kept
-# details: true     -> for new events without a price, open the event page once to look for price/deadline
+# (every event with its own page is opened by the detail pass for status, student price and a short description)
 # enabled: false    -> not checked at all (hiding a source in the app is separate and per user)
 # offer: {title, summary, price}  -> a standing offer that is always shown (from your own notes),
 #                                    in addition to whatever is found on the page
@@ -30,16 +30,19 @@ sources:
   - id: worldlit
     name: 20th-c. World Literature
     category: book
+    enabled: false   # discussions of one assigned book
     kind: ical
     url: https://www.meetup.com/20th-century-world-literature-book-club-zurich/events/ical/
   - id: lgbtbooks
     name: LGBT Book Club
     category: book
+    enabled: false   # discussions of one assigned book
     kind: ical
     url: https://www.meetup.com/english-language-lgbt-book-club-zurich/events/ical/
   - id: inkdrinkers
     name: Ink Drinkers
     category: book
+    enabled: false   # discussions of one assigned book
     url: https://www.inkdrinkers.club/clubs
   - id: literaturhaus
     name: Literaturhaus Zürich
@@ -124,8 +127,7 @@ sources:
     url: https://www.meetup.com/akt_arts/events/ical/
   - id: tanzquotient
     name: Tanzquotient
-    category: offer
-    kind: offer
+    category: dance
     url: https://tanzquotient.org/en/courses/
     offer: {title: "Tanzquotient: cheap dance courses for students", summary: "Ballroom, swing, salsa and more at student prices; new courses each semester."}
 

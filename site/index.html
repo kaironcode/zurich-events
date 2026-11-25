@@ -53,7 +53,7 @@ input[type=range]{flex:1;accent-color:var(--blue);height:28px}
 .card .when small{display:block;font-size:17px;font-weight:500;color:var(--soft);letter-spacing:0;margin-top:4px}
 .card h2{margin:4px 0 0;font-size:21px;line-height:1.2;font-weight:700;letter-spacing:-.01em}
 .card .venue{color:var(--soft)}
-.card .sum{font-size:15px;color:var(--soft);overflow:hidden;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical}
+.card .sum{font-size:16px;color:var(--ink);opacity:.8;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;margin-top:-4px}
 .tags{display:flex;flex-wrap:wrap;gap:6px}
 .tag{font-size:14px;padding:3px 10px;border-radius:999px;background:var(--chip);white-space:nowrap}
 .tag.price{background:var(--ink);color:var(--bg);font-weight:700}
@@ -120,6 +120,10 @@ h3{font-size:13px;font-weight:700;color:var(--blue);margin:22px 0 4px;display:fl
           <label for="pmax">Max price</label>
           <input id="pmax" type="range" min="0" max="105" step="5" value="105">
           <output id="pmax-out">Any</output>
+        </div>
+        <div class="price">
+          <label for="from">From</label>
+          <input id="from" type="date" style="flex:1;min-height:36px;border:1.5px solid var(--line);border-radius:10px;padding:0 10px;background:var(--card);font-size:16px">
         </div>
         <div class="chips" id="cats"></div>
         <label class="chip" style="justify-self:start"><input id="unpriced" type="checkbox" checked style="margin:0;accent-color:var(--blue)"> Include events without a listed price</label>
